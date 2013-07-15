@@ -35,7 +35,7 @@ class Taggart(object):
         """
         """
         _test_set()
-        
+
         if self._conn is None:
             self._conn = BlitzGateway(self.username, self.password, \
                          host=self.host)
@@ -55,9 +55,10 @@ class Taggart(object):
             for term in g:
                 if term.namespace and len(term.namespace) > 0:
                     if not tag_groups.has_key(term.namespace):
-                        tag_groups[term.namespace] = []
+                        tag_groups[term.namespace] = Set()
                         tag_group_descriptions[term.namespace] = term.definition
-                    
+                    tag_groups[term.namespace].add(term.
+
 
         else:
             raise Exception('Could not connect, and had no internal exception!')
