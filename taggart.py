@@ -4,8 +4,10 @@
 Foo
 """
 
+from sets import Set
+
 from omero.gateway import BlitzGateway
-from goatools.obo_parser import GODag
+from goatools.obo_parser import OBOReader
 
 
 class Taggart(object):
@@ -45,7 +47,7 @@ class Taggart(object):
     def import_from_obo(self, filename):
         """
         """
-        g = GODag(obo_file=filename)
+        g = OBOReader(obo_file=filename)
         # FIXME XXX - This is terrible. We can make something better
         # This is a first-stab inefficient hunk of crap
         tag_groups = {}
@@ -57,7 +59,7 @@ class Taggart(object):
                     if not tag_groups.has_key(term.namespace):
                         tag_groups[term.namespace] = Set()
                         tag_group_descriptions[term.namespace] = term.definition
-                    tag_groups[term.namespace].add(term.
+                    tag_groups[term.namespace].add(term.name()
 
 
         else:
