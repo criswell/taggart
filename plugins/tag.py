@@ -9,6 +9,10 @@
    Use is subject to license terms supplied in LICENSE.txt
 
 """
+
+import sys
+
+import omero
 from omero.cli import BaseControl, CLI, ExceptionHandler
 
 HELP="""Manage OMERO user tags.
@@ -31,6 +35,16 @@ def pagetext(text_lined, num_lines=25):
             else:
                 print line
 
+def determine_pagination():
+    """
+    Will attempt to determine console length based upon the current platform.
+
+    Returns the pagination length.
+    """
+    lines = 25 # The default if we can't figure it out
+
+
+
 class TagControl(BaseControl):
 
     def _configure(self, parser):
@@ -41,12 +55,26 @@ class TagControl(BaseControl):
         sub = parser.sub()
 
         list_g = parser.add(sub, self.list_groups, help="List groups")
-        list_g = parser.add(sub, self.list_groups_md, help="List groups_md")
-        list_g.add_argument("--foo", action="store_true", default=False, \
-            help="Placeholder for future option")
+        list_gd = parser.add(sub, self.list_groups_md, help="List groups_md")
+
+        sefl.add_standard_params(list_g. list_gd)
+
         list_g.add_login_arguments()
 
+    def add_standard_params(self, parser):
+        parser.add_argument("--admin", action="store_true", default=False, \
+            help="Perform action as an administrator")
+        parser.add_argument("--nopage", action="store_true", default=False, \
+            help="Disable pagination")
+
     def list_groups(self, args):
+        params = omero.sys.ParametersI()
+        params.addString('ns', omero.constants.metadata.NSINSIGHTTAGSET)
+        ice_map = dict()
+        #import pdb; pdb.set_trace()
+        if args.admin:
+            ice_map["omero.group"]="-1"
+
         client = self.ctx.conn(args)
         session = client.getSession()
         query = session.getQueryService()
@@ -57,6 +85,33 @@ class TagControl(BaseControl):
             where ann.ns=:ns
         """
 
+        children = set()
+        mapping = dict()
+        for element in query.projection(sql, params, ice_map):
+            parent = element[0].getValue()
+            child = element[1].getValue()
+            children.add(child)
+            mapping.setdefault(parent, []).append(child)
+
+        sql = """
+            select ann.id, ann.description, ann.textValue, ann.details.owner.id,
+            ann.details.owner.firstName, ann.details.owner.lastName
+            from TagAnnotation ann
+            """
+
+        tags = []
+        owners = dict()
+        for element in query.projection(sql, params, ice_map):
+            tag_id, description, text, owner, first, last = \
+                [None if x is None else x.getValue() for x in element]
+            tags.append([
+                tag_id,
+                description,
+                text,
+                owner,
+                mapping.get(tag_id) or 0,
+            ])
+            owners[owner] = "%s %s" % (first, last)
 
     def list_groups_md(self, args):
         #self.ctx.out("In list groups- whee!")
