@@ -10,7 +10,7 @@
 
 """
 
-import sys
+import platform
 
 import omero
 from omero.cli import BaseControl, CLI, ExceptionHandler
@@ -42,6 +42,22 @@ def determine_pagination():
     Returns the pagination length.
     """
     lines = 25 # The default if we can't figure it out
+
+    this_system = platform.system().lower()
+
+    try:
+        if this_system in ['linux', 'darwin', 'macosx', 'cygwin']:
+            #
+        elif this_system in ['windows', 'win32']:
+            #
+    except:
+        # Possible evil to ignore what the error was, but, truthfully,
+        # the reason we do so is because it means it's a platform we
+        # don't have support for, or a platform we should have support
+        # for but which has some non-standard witch-craftery going on
+        sys.ctx.out("Could not determine the console length.")
+
+    return lines
 
 
 
