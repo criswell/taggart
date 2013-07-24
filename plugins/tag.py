@@ -12,6 +12,7 @@
 
 import platform
 import subprocess
+import sys
 
 import omero
 from omero.cli import BaseControl, CLI, ExceptionHandler
@@ -52,7 +53,8 @@ class TagControl(BaseControl):
         list_g = parser.add(sub, self.list_groups, help="List groups")
         list_gd = parser.add(sub, self.list_groups_md, help="List groups_md")
 
-        sefl.add_standard_params(list_g. list_gd)
+        self.add_standard_params(list_g)
+        self.add_standard_params(list_gd)
 
         list_g.add_login_arguments()
 
@@ -62,16 +64,18 @@ class TagControl(BaseControl):
         parser.add_argument("--nopage", action="store_true", default=False, \
             help="Disable pagination")
 
-    def pagetext(self, text_lined, num_lines=25):
-        for index,line in enumerate(text_lined):
-            if index % num_lines == 0 and index:
+    def pagetext(self, format, elements, num_lines=None):
+        for index, line in enumerate(elements):
+            if num_lines is None:
+                self.ctx.out(format % line)
+            elif index % num_lines == 0 and index:
                 input=raw_input("Hit any key to continue press q to quit")
                 if input.lower() == 'q':
                     break
-                else:
-                    print line
+            else:
+                self.ctx.out(format % line)
 
-    def determine_pagination():
+    def determine_pagination(self):
         """
         Will attempt to determine console length based upon the current platform.
 
@@ -83,8 +87,9 @@ class TagControl(BaseControl):
 
         try:
             if this_system in ['linux', 'darwin', 'macosx', 'cygwin']:
-                output = exec_command('tput', 'lines'])
-                lines = int(output[0]) if len(output) > 0
+                output = exec_command(['tput', 'lines'])
+                if len(output) > 0:
+                    lines = int(output[0]) 
             elif this_system in ['windows', 'win32']:
                 # http://stackoverflow.com/questions/566746/how-to-get-console-window-width-in-python
                 from ctypes import windll, create_string_buffer
@@ -104,7 +109,7 @@ class TagControl(BaseControl):
             # the reason we do so is because it means it's a platform we
             # don't have support for, or a platform we should have support
             # for but which has some non-standard witch-craftery going on
-            sys.ctx.out("Could not determine the console length.")
+            self.ctx.out("Could not determine the console length.")
 
         return lines
 
@@ -115,6 +120,11 @@ class TagControl(BaseControl):
         #import pdb; pdb.set_trace()
         if args.admin:
             ice_map["omero.group"]="-1"
+
+        if args.nopage:
+            console_length = None
+        else:
+            console_length = self.determine_pagination()
 
         client = self.ctx.conn(args)
         session = client.getSession()
@@ -141,18 +151,38 @@ class TagControl(BaseControl):
             """
 
         tags = []
-        owners = dict()
+        #owners = dict()
+
+        format_lengths = [
+            0, # tag_id
+            0, # description
+            0, # text
+            0, # owner
+            0  # mapping
+        ]
+
         for element in query.projection(sql, params, ice_map):
             tag_id, description, text, owner, first, last = \
                 [None if x is None else x.getValue() for x in element]
-            tags.append([
+
+            mapper = mapping.get(tag_id) or 0
+            tags.append((
                 tag_id,
                 description,
                 text,
                 owner,
-                mapping.get(tag_id) or 0,
-            ])
-            owners[owner] = "%s %s" % (first, last)
+                mapper,
+            ))
+
+            for i, entity in enumerate([tag_id, description, text, owner, mapper]):
+                if len(str(entity)) > format_lengths[i]:
+                    format_lengths[i] = len(str(entity))
+
+        format_string = "%{0}s |%{1}s |%{2}s |%{3}s |%{4}s".format(
+            format_lengths[0], format_lengths[1], format_lengths[2],
+            format_lengths[3], format_lengths[4])
+
+        self.pagetext(format_string, tags, console_length)
 
     def list_groups_md(self, args):
         #self.ctx.out("In list groups- whee!")
