@@ -33,17 +33,29 @@ class TagControl(BaseControl):
         sub = parser.sub()
 
         list_g = parser.add(sub, self.list_groups, help="List groups")
+        list_g = parser.add(sub, self.list_groups_md, help="List groups_md")
         list_g.add_argument("--foo", action="store_true", default=False, \
             help="Placeholder for future option")
         list_g.add_login_arguments()
 
     def list_groups(self, args):
-        self.ctx.out("In list groups- whee!")
+        client = self.ctx.conn(args)
+        session = client.getSession()
+        query = session.getQueryService()
+        sql = """
+            select aal.parent.id, aal.child.id
+            from AnnotationAnnotationLink aal
+            inner join aal.parent ann
+            where ann.ns=:ns
+        """
+
+
+    def list_groups_md(self, args):
+        #self.ctx.out("In list groups- whee!")
         c = self.ctx.conn(args)
         s = c.getSession()
         metadata = s.getMetadataService()
-        ts = metadata.loadTagSets(None)
-        for el in ts:
+        for el in metadata.loadTagSets(None):
             print "%s : %s" % (el.getId().getValue(), el.getTextValue().getValue())
 
 
