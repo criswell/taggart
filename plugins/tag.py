@@ -22,6 +22,14 @@ Examples:
 
 """
 
+def pagetext(text_lined, num_lines=25):
+    for index,line in enumerate(text_lined):
+        if index % num_lines == 0 and index:
+            input=raw_input("Hit any key to continue press q to quit")
+            if input.lower() == 'q':
+                break
+            else:
+                print line
 
 class TagControl(BaseControl):
 
