@@ -34,10 +34,7 @@ def exec_command(cmd):
     Returns a list containing the output
     '''
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-        #shell=False, stdin=subprocess.PIPE,
-        #stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     output = p.stdout.readlines()
-    #p.stdin.close()
     p.stdout.close()
     return output
 
@@ -51,8 +48,8 @@ class TagControl(BaseControl):
         parser.add_login_arguments()
         sub = parser.sub()
 
-        list_g = parser.add(sub, self.list_groups, help="List groups")
-        list_gd = parser.add(sub, self.list_groups_md, help="List groups_md")
+        list_g = parser.add(sub, self.list_tagsets, help="List tagsets")
+        list_gd = parser.add(sub, self.list_tagsets_md, help="List tagsets_md")
 
         self.add_standard_params(list_g)
         self.add_standard_params(list_gd)
@@ -122,7 +119,7 @@ class TagControl(BaseControl):
 
         return width, lines
 
-    def list_groups(self, args):
+    def list_tagsets(self, args):
         params = omero.sys.ParametersI()
         params.addString('ns', omero.constants.metadata.NSINSIGHTTAGSET)
         ice_map = dict()
@@ -200,8 +197,8 @@ class TagControl(BaseControl):
 
         self.pagetext(format_string, tags, console_length)
 
-    def list_groups_md(self, args):
-        #self.ctx.out("In list groups- whee!")
+    def list_tagsets_md(self, args):
+        #self.ctx.out("In list tagsets- whee!")
         c = self.ctx.conn(args)
         s = c.getSession()
         metadata = s.getMetadataService()
