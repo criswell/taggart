@@ -33,10 +33,11 @@ def exec_command(cmd):
     given a command, will execute it in the parent environment
     Returns a list containing the output
     '''
-    p = subprocess.Popen(cmd, shell=True, stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+        #shell=False, stdin=subprocess.PIPE,
+        #stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     output = p.stdout.readlines()
-    p.stdin.close()
+    #p.stdin.close()
     p.stdout.close()
     return output
 
@@ -67,21 +68,24 @@ class TagControl(BaseControl):
     def pagetext(self, format, elements, num_lines=None):
         for index, line in enumerate(elements):
             if num_lines is None:
-                self.ctx.out(format % line)
+                #self.ctx.out(format % line)
+                self.ctx.out(format.format(*line))
             elif index % num_lines == 0 and index:
-                input=raw_input("Hit any key to continue press q to quit")
+                input=raw_input(": ")
                 if input.lower() == 'q':
                     break
             else:
-                self.ctx.out(format % line)
+                self.ctx.out(format.format(*line))
 
-    def determine_pagination(self):
+    def determine_console_size(self):
         """
-        Will attempt to determine console length based upon the current platform.
+        Will attempt to determine console size based upon the current platform.
 
-        Returns the pagination length.
+        Returns tuple of width and length.
         """
-        lines = 25 # The default if we can't figure it out
+        # The defaults if we can't figure it out
+        lines = 25
+        width = 80
 
         this_system = platform.system().lower()
 
@@ -89,7 +93,10 @@ class TagControl(BaseControl):
             if this_system in ['linux', 'darwin', 'macosx', 'cygwin']:
                 output = exec_command(['tput', 'lines'])
                 if len(output) > 0:
-                    lines = int(output[0]) 
+                    lines = int(output[0].rstrip())
+                output = exec_command(['tput', 'cols'])
+                if len(output) > 0:
+                    width = int(output[0].rstrip()) 
             elif this_system in ['windows', 'win32']:
                 # http://stackoverflow.com/questions/566746/how-to-get-console-window-width-in-python
                 from ctypes import windll, create_string_buffer
@@ -104,14 +111,16 @@ class TagControl(BaseControl):
                      left, top, right, bottom,
                      maxx, maxy) = struct.unpack("hhhhHhhhhhh", csbi.raw)
                     lines = bottom - top + 1
+                    width = bottom - top + 1
         except:
+            raise
             # Possible evil to ignore what the error was, but, truthfully,
             # the reason we do so is because it means it's a platform we
             # don't have support for, or a platform we should have support
             # for but which has some non-standard witch-craftery going on
             self.ctx.out("Could not determine the console length.")
 
-        return lines
+        return width, lines
 
     def list_groups(self, args):
         params = omero.sys.ParametersI()
@@ -123,8 +132,9 @@ class TagControl(BaseControl):
 
         if args.nopage:
             console_length = None
+            width = 80
         else:
-            console_length = self.determine_pagination()
+            width, console_length = self.determine_console_size()
 
         client = self.ctx.conn(args)
         session = client.getSession()
@@ -161,6 +171,8 @@ class TagControl(BaseControl):
             0  # mapping
         ]
 
+        max_field_width = int((width / 5.0) - 1)
+
         for element in query.projection(sql, params, ice_map):
             tag_id, description, text, owner, first, last = \
                 [None if x is None else x.getValue() for x in element]
@@ -175,12 +187,16 @@ class TagControl(BaseControl):
             ))
 
             for i, entity in enumerate([tag_id, description, text, owner, mapper]):
-                if len(str(entity)) > format_lengths[i]:
+                if len(str(entity)) > format_lengths[i] and len(str(entity)) <= max_field_width:
                     format_lengths[i] = len(str(entity))
 
-        format_string = "%{0}s |%{1}s |%{2}s |%{3}s |%{4}s".format(
-            format_lengths[0], format_lengths[1], format_lengths[2],
-            format_lengths[3], format_lengths[4])
+        #format_string = "%*{0}s |%*{1}s |%*{2}s |%*{3}s |%*{4}s".format(
+        #    format_lengths[0], format_lengths[1], format_lengths[2],
+        #    format_lengths[3], format_lengths[4])
+
+        format_string = "{0:%i}|{1:%i}|{2:%i}|{3:%i}|{4:%i}" % \
+            (format_lengths[0], format_lengths[1], format_lengths[2],
+             format_lengths[3], format_lengths[4])
 
         self.pagetext(format_string, tags, console_length)
 
