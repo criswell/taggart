@@ -29,15 +29,28 @@ Examples:
 """
 
 def exec_command(cmd):
-    '''
+    """
     given a command, will execute it in the parent environment
     Returns a list containing the output
-    '''
+    """
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
     output = p.stdout.readlines()
     p.stdout.close()
     return output
 
+def clip(s, width):
+    """
+    Given a string, s, and a width, will clip the string to that width or
+    fill it with spaces up to that width.
+
+    Returns modified string
+    """
+    mod_s = s
+    if len(s) > width:
+        mod_s = s[:width]
+    elif len(s) < width:
+        mod_s = s + " " * (width - len(s))
+    return mod_s
 
 class TagControl(BaseControl):
 
@@ -48,11 +61,9 @@ class TagControl(BaseControl):
         parser.add_login_arguments()
         sub = parser.sub()
 
-        list_g = parser.add(sub, self.list_tagsets, help="List tagsets")
-        list_gd = parser.add(sub, self.list_tagsets_md, help="List tagsets_md")
+        list_g = parser.add(sub, self.list, help="List tags")
 
         self.add_standard_params(list_g)
-        self.add_standard_params(list_gd)
 
         list_g.add_login_arguments()
 
@@ -68,7 +79,7 @@ class TagControl(BaseControl):
                 #self.ctx.out(format % line)
                 self.ctx.out(format.format(*line))
             elif index % num_lines == 0 and index:
-                input=raw_input(": ")
+                input=raw_input("[Enter] or [q]uit: ")
                 if input.lower() == 'q':
                     break
             else:
@@ -119,7 +130,14 @@ class TagControl(BaseControl):
 
         return width, lines
 
-    def list_tagsets(self, args):
+    def list(self, args):
+        """
+        """
+        # The max width of the ID field. We need something here unless
+        # we want to pre-search to determine the max size. Our assumption
+        # here is that we wont have more than 10,000,000 tags.
+        max_id_width = 8
+
         params = omero.sys.ParametersI()
         params.addString('ns', omero.constants.metadata.NSINSIGHTTAGSET)
         ice_map = dict()
@@ -136,75 +154,34 @@ class TagControl(BaseControl):
         client = self.ctx.conn(args)
         session = client.getSession()
         query = session.getQueryService()
-        sql = """
-            select aal.parent.id, aal.child.id
-            from AnnotationAnnotationLink aal
-            inner join aal.parent ann
-            where ann.ns=:ns
-        """
-
-        children = set()
-        mapping = dict()
-        for element in query.projection(sql, params, ice_map):
-            parent = element[0].getValue()
-            child = element[1].getValue()
-            children.add(child)
-            mapping.setdefault(parent, []).append(child)
 
         sql = """
-            select ann.id, ann.description, ann.textValue, ann.details.owner.id,
-            ann.details.owner.firstName, ann.details.owner.lastName
+            select ann.id, ann.textValue, ann.description
             from TagAnnotation ann
             """
 
         tags = []
-        #owners = dict()
 
-        format_lengths = [
-            0, # tag_id
-            0, # description
-            0, # text
-            0, # owner
-            0  # mapping
-        ]
-
-        max_field_width = int((width / 5.0) - 1)
+        max_field_width = int(((width - max_id_width) / 2.0) - 2)
 
         for element in query.projection(sql, params, ice_map):
-            tag_id, description, text, owner, first, last = \
-                [None if x is None else x.getValue() for x in element]
+            tag_id, text, description, = \
+                [str(None) if x is None else str(x.getValue()) for x in element]
 
-            mapper = mapping.get(tag_id) or 0
-            tags.append((
-                tag_id,
-                description,
-                text,
-                owner,
-                mapper,
-            ))
+            if args.nopage:
+                tags.append((
+                    tag_id,
+                    text,
+                    description,
+                ))
+            else:
+                tags.append((
+                    clip(tag_id, max_id_width),
+                    clip(text, max_field_width),
+                    clip(description, max_field_width),
+                ))
 
-            for i, entity in enumerate([tag_id, description, text, owner, mapper]):
-                if len(str(entity)) > format_lengths[i] and len(str(entity)) <= max_field_width:
-                    format_lengths[i] = len(str(entity))
-
-        #format_string = "%*{0}s |%*{1}s |%*{2}s |%*{3}s |%*{4}s".format(
-        #    format_lengths[0], format_lengths[1], format_lengths[2],
-        #    format_lengths[3], format_lengths[4])
-
-        format_string = "{0:%i}|{1:%i}|{2:%i}|{3:%i}|{4:%i}" % \
-            (format_lengths[0], format_lengths[1], format_lengths[2],
-             format_lengths[3], format_lengths[4])
-
-        self.pagetext(format_string, tags, console_length)
-
-    def list_tagsets_md(self, args):
-        #self.ctx.out("In list tagsets- whee!")
-        c = self.ctx.conn(args)
-        s = c.getSession()
-        metadata = s.getMetadataService()
-        for el in metadata.loadTagSets(None):
-            print "%s : %s" % (el.getId().getValue(), el.getTextValue().getValue())
-
+        self.pagetext("{0}|{1}|{2}", tags, console_length)
 
 try:
     register("tag", TagControl, HELP)
